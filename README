@@ -1,0 +1,11 @@
+Tworse Key http://modin.yuri.at/tworsekey
+(c) 2012 by Martin Kaltenbrunner
+
+The Tworse Key is an open design exercise in interface archaeology,  that decodes the input from a classic Morse key to send twitter messages. This standalone device connects through a standard LAN cable, the Morse signals are decoded by the built-in Arduino Ethernet board, which delivers the final message though the Twitter API. 
+
+This project is fully documented in order to illustrate the Open Design process for beginners, the source code and building instructions are therefore available under the according free licenses. 
+
+This project is using NeoCat's Twitter library:
+http://arduino-tweet.appspot.com/
+
+All source code is available under the GPL 3.0 and the hardware schematics are available under a Creative Commons 3.0 BY-SA license. You can find all documentation and building instructions on the project page.
