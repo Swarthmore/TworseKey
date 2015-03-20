@@ -27,6 +27,13 @@ byte mac[] = ARDUINO_ETHERNET_MAC;
 // Your token to tweet (get it from http://arduino-tweet.appspot.com/)
 Twitter twitter(TWITTER_TOKEN);
 
+// Define constants for LED colors
+#define BLACK 0 // Off
+#define RED 1
+#define GREEN 2
+#define BLUE 3
+#define YELLOW 4
+
 
 
 // This IP address is used if DHCP fails
@@ -36,10 +43,11 @@ byte ip[] = { 192, 168, 2, 2 };
 char msg[] = "";
 
 int buzzPin = 5;
-int rledPin = 9;
-int gledPin = 8;
+int rledPin = A0; //9;
+int gledPin = A1;
+int bledPin = A2;
 int ledPin = rledPin;
-int morsePin = 7; 
+int morsePin = A3; 
 boolean keyDown = false;
 boolean paused = false;
 unsigned long time = 0;
@@ -84,9 +92,13 @@ void setup()
   // define the pins
   pinMode(rledPin, OUTPUT);
   pinMode(gledPin, OUTPUT);
+  pinMode(bledPin, OUTPUT);  
   pinMode(buzzPin, OUTPUT);     // output for the buzzer
   pinMode(morsePin, INPUT);     // input from the morse switch 
   digitalWrite(morsePin, HIGH); // turns on pull-up resistor
+  
+  // Set LED color
+  set_led_color(YELLOW);
   
   // initialize connections
   Serial.begin(9600);
@@ -117,8 +129,7 @@ void connectEthernet() {
   delay(300);
   
   // change LED color to GREEN
-  digitalWrite(rledPin, HIGH);
-  ledPin = gledPin;
+  set_led_color(GREEN);
   
   Serial.println(Ethernet.localIP());
   paused = false;
@@ -207,7 +218,7 @@ void decodeMorse() {
         decoded = true;
         break;
      }
-  }
+  } 
 
   if (!decoded) message+="*";
   morseCode = "";
@@ -219,11 +230,14 @@ void decodeMorse() {
 
 void sendTweet() {
   
+  // Switch LED to blue
+  set_led_color(BLUE);
+  
   if (message.length()==0) return;
   paused = true;
   
   Serial.print("sending tweet ... ");
-  message += "#tworse";
+  message += TWITTER_HASHTAG;
   message.toCharArray(tweet,140);
   
   if (twitter.post(tweet)) {
@@ -238,32 +252,72 @@ void sendTweet() {
       tone(buzzPin, 660,100);
       delay(100);
       tone(buzzPin, 880,300);
-      delay(100);
+      delay(100); 
     } else {
       Serial.print("failed : code ");
       Serial.println(status);
-      // play error buzz
-      tone(buzzPin, 100,1000);
+      // play error buzz and show red LED.  Then switch to green
+      set_led_color(RED);
+      tone(buzzPin, 100,1000);  M
     }
-  } else {
+    
+  } else { 
+    set_led_color(RED);
     Serial.println("connection failed.");
+    tone(buzzPin,392);
+    delay(250);
+    tone(buzzPin,262, 500);
+    delay(500);
   }
+  
+  set_led_color(GREEN);
   
   message = "";
   time = millis();
   paused = false;
 }
 
+
+
+// Set LED color
+void set_led_color(int color) {
+  
+  // Turn all LED's off
+  digitalWrite(rledPin, HIGH);
+  digitalWrite(gledPin, HIGH);  
+  digitalWrite(bledPin, HIGH);  
+  
+   switch(color)  {
+     case RED:
+       digitalWrite(rledPin, LOW);
+       break;     
+     case GREEN:
+       digitalWrite(gledPin, LOW);
+       break;       
+     case BLUE:
+       digitalWrite(bledPin, LOW);
+       break;       
+     case YELLOW:
+       digitalWrite(rledPin, LOW);
+       digitalWrite(gledPin, LOW);
+       break;  
+   }
+   
+}
+
+
+
 void loop()
 {  
   if (paused) return;
   
   if (digitalRead(morsePin) == HIGH) {    // the morse key is UP
+  
       if (keyDown) {                      // the key was DOWN before
         unsigned long duration = millis() - time;
         if (duration<20) return;
 
-        digitalWrite(ledPin, LOW);  // turn LED  OFF
+        set_led_color(BLACK);  // turn LED  OFF
         noTone(buzzPin);            // turn BUZZ OFF
         keyDown = false;
 
@@ -293,7 +347,9 @@ void loop()
           tone(buzzPin, 2000,50);                          // short feedback beep
       }
     }
+    
   } else {               // the morse key is DOWN
+  
     if (!keyDown) {      // the key was UP before
       unsigned long duration = millis() - time;
       if (duration<20) {
@@ -305,13 +361,16 @@ void loop()
       keyDown = true;
       time = millis();
       
-      digitalWrite(ledPin, HIGH);    // turn LED  ON
+      set_led_color(GREEN);
       tone(buzzPin, 440);            // turn BUZZ ON
+      
     } else {             // the key was already DOWN
+    
       unsigned long duration = millis() - time;
+      
       if (duration>1000) {
         
-        digitalWrite(ledPin, LOW);  // turn LED  OFF
+        set_led_color(BLACK);
         noTone(buzzPin);            // turn BUZZ OFF
         keyDown = false;
  

@@ -5,3 +5,5 @@
 
 // Twitter token
 #define TWITTER_TOKEN "<INSERT TWITTER TOKEN BETWEEN QUOTES>"
+
+#define TWITTER_HASHTAG "#TWORSE"
