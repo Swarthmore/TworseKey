@@ -415,7 +415,7 @@ void loop() {
       
     } else {             // the key was already DOWN (i.e. the key was already being pressed before this loop)
     
-      if ( duration > (DIT+50) ) {
+      if ( ( duration > (DIT+50))  && (duration < 2*DAH) ) {
         set_led_color(AQUA);              // Change LED color for DAH
       } else if ( (duration > (2*DAH)) && (duration<1000) ) {
         set_led_color(WHITE);             // Turn off LED for greater than DAH
