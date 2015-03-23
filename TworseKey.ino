@@ -33,6 +33,18 @@ Twitter twitter(TWITTER_TOKEN);
 #define GREEN 2
 #define BLUE 3
 #define YELLOW 4
+#define PURPLE 5
+#define AQUA 6
+#define WHITE 7
+
+#define buzzPin  5
+#define rledPin A0
+#define gledPin A1
+#define bledPin A2
+#define morsePin A3
+
+#define DIT 100 // mS
+#define DAH 300 // mS
 
 
 
@@ -42,24 +54,16 @@ byte ip[] = { 192, 168, 2, 2 };
 // Message to post
 char msg[] = "";
 
-int buzzPin = 5;
-int rledPin = A0; //9;
-int gledPin = A1;
-int bledPin = A2;
-int ledPin = rledPin;
-int morsePin = A3; 
 boolean keyDown = false;
 boolean paused = false;
+boolean addedSpace = false;
 unsigned long time = 0;
-
-int DIT = 100;
-int DAH = 3*DIT;
 
 String morseCode = "";
 String message = "";
 char tweet[140];
 
-    char LATIN_CHARACTERS[] = {
+char LATIN_CHARACTERS[] = {
         // Numbers
         '0', '1', '2', '3', '4',
         '5', '6', '7', '8', '9',
@@ -73,7 +77,7 @@ char tweet[140];
         '.', '?', '@', ' '
     };
 
-    String MORSE_CHARACTERS[] = {
+String MORSE_CHARACTERS[] = {
         // Numbers
         "-----", ".----", "..---", "...--", "....-",
         ".....", "-....", "--...", "---..", "----.", 
@@ -86,9 +90,13 @@ char tweet[140];
         // Special
         ".-.-.-", "..--..", ".--.-.", " "
     };
-
-void setup()
-{
+    
+    
+    
+    
+    
+void setup() {
+  
   // define the pins
   pinMode(rledPin, OUTPUT);
   pinMode(gledPin, OUTPUT);
@@ -103,9 +111,13 @@ void setup()
   // initialize connections
   Serial.begin(9600);
   delay(1000);
+
   connectEthernet();
   time = millis();
 }
+
+
+
 
 void connectEthernet() {
   
@@ -139,6 +151,7 @@ void connectEthernet() {
 void resetAll() {
 
     paused = true;
+    set_led_color(RED);
     Serial.println("reset");
     
     // play earcon
@@ -156,6 +169,7 @@ void resetAll() {
    
     time = millis();
     paused = false;
+    set_led_color(BLACK);
     return;
 }
 
@@ -209,6 +223,7 @@ void resetWord() {
 void decodeMorse() {
   if (morseCode.length()==0) return;
   paused = true;
+  set_led_color(PURPLE);
   
   // find character from table
   bool decoded = false;
@@ -220,13 +235,26 @@ void decodeMorse() {
      }
   } 
 
-  if (!decoded) message+="*";
+  if (!decoded) {
+    message+="*";
+    set_led_color(RED);  
+    tone(buzzPin,50);
+    delay(50);
+    tone(buzzPin,262, 100);
+    delay(100);
+  } else {
+     tone(buzzPin, 2000,50);            // turn BUZZ ON 
+  }
+  
   morseCode = "";
   Serial.println("\n"+message);
   if (message.length()==130) sendTweet();
   
   paused = false;
+  set_led_color(BLACK);
 }
+
+
 
 void sendTweet() {
   
@@ -301,82 +329,107 @@ void set_led_color(int color) {
        digitalWrite(rledPin, LOW);
        digitalWrite(gledPin, LOW);
        break;  
+     case PURPLE:
+       digitalWrite(rledPin, LOW);
+       digitalWrite(bledPin, LOW);
+       break;      
+     case AQUA:
+       digitalWrite(gledPin, LOW);
+       digitalWrite(bledPin, LOW);
+       break;   
+     case WHITE:
+       digitalWrite(rledPin, LOW);
+       digitalWrite(gledPin, LOW);       
+       digitalWrite(bledPin, LOW);
+       break;         
    }
    
 }
 
 
 
-void loop()
-{  
+void loop() {  
+  
   if (paused) return;
+ 
+  unsigned long duration = millis() - time;  // Figure out how long the key has been pressed/released
   
-  if (digitalRead(morsePin) == HIGH) {    // the morse key is UP
+  if (digitalRead(morsePin) == HIGH) {     
+    // the morse key is currently UP
   
-      if (keyDown) {                      // the key was DOWN before
-        unsigned long duration = millis() - time;
+    if (keyDown) {       
+         // the key was DOWN before (i.e. the key was just released)        
+        
+        // If the key was pressed for a very short time, just ignore
         if (duration<20) return;
 
-        set_led_color(BLACK);  // turn LED  OFF
-        noTone(buzzPin);            // turn BUZZ OFF
+        // Otherwise, turn off the LED and buzzer, and set KeyDown to false to indicate the key is no longer being pressed
+        set_led_color(BLACK);        // turn LED  OFF
+        noTone(buzzPin);             // turn BUZZ OFF
         keyDown = false;
+        addedSpace = false;          // Space has not been added
 
-      if (duration<(DIT+50)) {           // DIT detected
+        // Determine if key was pressed for a DIT or DAH duration
+        if (duration < (DIT+50) ) {           // DIT detected
           morseCode+=".";
-          // DIT=(DIT+duration)/2;
           Serial.print(".");
+          
+          // If there are a series of DITs -- reset the message
           if (morseCode=="........") resetAll();
-      } else if (duration<(2*DAH)) {    // DAH detected
-         morseCode+="-";
-         //DAH=(DAH+duration)/2;
-         //DIT=DAH/3;
-         Serial.print("-");
-      } /*else if (duration>1000) {        // send tweet after pressing key for more than one second
-          sendTweet();
-      }*/
+          
+        } else if (duration<(2*DAH)) {    // DAH detected
+          morseCode+="-";
+          Serial.print("-");
+        }
                
-      time = millis();
-     
-    } else {                           // the key was UP before
-      unsigned long duration = millis() - time;
-      if ((duration>60000) && (message!="")) {             // reset after 60 seconds inactivity
+        time = millis();  // Reset the time.  This indicates how long the key is up for
+      
+    } else {   
+      
+      // the key was UP before (i.e. the key was up and still is up)
+      if ( (duration>60000) && (message!="") ) {             // Reset the message after 60 seconds inactivity     
         resetAll();
-      } else if ((duration>1500) && (morseCode!="")) {     // start a new word after 1.5 seconds
-          decodeMorse();
-          if (message!="") message+=" ";
-          tone(buzzPin, 2000,50);                          // short feedback beep
+       } else if ( (duration>DAH+100) && (duration<=1500) ) {  
+        // If the key was up for between a DAH and 1.5 seconds, that is the 
+        // end of a character (starting a new character)
+        decodeMorse();   // decode last letter  
+      } else if (duration>1500 && message!="" && !addedSpace) {     // start a new word after 1.5 seconds
+          tone(buzzPin, 200,50);                          // short feedback beep
+          addedSpace = true;
       }
-    }
+    } // End of key UP
     
-  } else {               // the morse key is DOWN
-  
-    if (!keyDown) {      // the key was UP before
-      unsigned long duration = millis() - time;
-      if (duration<20) {
-        return;
-      } else if ((duration>DAH+100) && (duration<=1500)) {
-        decodeMorse();   // decode last letter
-      }
-      
-      keyDown = true;
-      time = millis();
-      
+  } else {               
+    
+    // the morse key is currently DOWN   
+    if (!keyDown) {      // the key was UP before (i.e. the key was just pressed)
+
+      if (duration<20) {return;}     // If the key was released for a very short time, just ignore
+        
+      // Otherwise, turn on the LED and buzzer, and set KeyDown to true to indicate the key is being pressed
       set_led_color(GREEN);
       tone(buzzPin, 440);            // turn BUZZ ON
+      keyDown = true;
       
-    } else {             // the key was already DOWN
+      time = millis();    // Reset the time.  This indicates how long the key is down for
+      
+    } else {             // the key was already DOWN (i.e. the key was already being pressed before this loop)
     
-      unsigned long duration = millis() - time;
-      
-      if (duration>1000) {
+      if ( duration > (DIT+50) ) {
+        set_led_color(AQUA);              // Change LED color for DAH
+      } else if ( (duration > (2*DAH)) && (duration<1000) ) {
+        set_led_color(WHITE);             // Turn off LED for greater than DAH
+      } else if (duration>1000) {         // send tweet after pressing the key for one second
         
+        // Turn off LED and buzzer, set keyDown to false (to reset timer)
         set_led_color(BLACK);
-        noTone(buzzPin);            // turn BUZZ OFF
+        noTone(buzzPin);            
         keyDown = false;
  
-        sendTweet();                // send tweet after pressing the key for one second
+        sendTweet();         // Send the Tweet!       
       }
-    }
-  }  
+      
+    } 
+  }  // End of key up/down if statement
 }
 
