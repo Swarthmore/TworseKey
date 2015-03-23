@@ -258,7 +258,7 @@ void sendTweet() {
       Serial.println(status);
       // play error buzz and show red LED.  Then switch to green
       set_led_color(RED);
-      tone(buzzPin, 100,1000);  M
+      tone(buzzPin, 100,1000); 
     }
     
   } else { 
