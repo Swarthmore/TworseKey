@@ -19,13 +19,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "config.h"
 #include <SPI.h>
 #include <Ethernet.h>
-#include <Twitter.h>
 
 byte mac[] = ARDUINO_ETHERNET_MAC;
-
-
-// Your token to tweet (get it from http://arduino-tweet.appspot.com/)
-Twitter twitter(TWITTER_TOKEN);
 
 // Define constants for LED colors
 #define BLACK 0 // Off
@@ -46,7 +41,12 @@ Twitter twitter(TWITTER_TOKEN);
 #define DIT 100 // mS
 #define DAH 300 // mS
 
+// Define POST location
+char MAKER_URL[] = "maker.ifttt.com";
+char MAKER_PAGE[80] = "/trigger/blah/with/key/";
+int MAKER_PORT = 80;
 
+EthernetClient client;
 
 // This IP address is used if DHCP fails
 byte ip[] = { 192, 168, 2, 2 };
@@ -107,6 +107,9 @@ void setup() {
   
   // Set LED color
   set_led_color(YELLOW);
+
+  // Setup URL
+  strcat(MAKER_PAGE, MAKER_KEY);
   
   // initialize connections
   Serial.begin(9600);
@@ -115,7 +118,6 @@ void setup() {
   connectEthernet();
   time = millis();
 }
-
 
 
 
@@ -173,52 +175,6 @@ void resetAll() {
     return;
 }
 
-/*
-void resetWord() {
-  
-    paused = true;
- 
-    Serial.println("");
-    if (message.length()==0) {
-     delay(500);
-     tone(buzzPin, 100,1000);
-     morseCode = "";
-     paused = false;
-     return;  
-   }
-
-    delay(500);   
-    tone(buzzPin, 2000,50);
-    delay(100);
-    tone(buzzPin, 2000,50);
-    delay(100);
-    tone(buzzPin, 2000,50);
-   
-   while (message.endsWith(" ")) {
-     message.trim();
-   }
-   
-   int index = message.lastIndexOf(" ");
-   if (index<0) {
-     message = "";
-   } else {
-     String tmp;
-     Serial.print(String(index)+" ");
-     for (int i=0;i<index;i++) {
-       tmp+=message.charAt(i);
-       Serial.print(message.charAt(i));
-     } Serial.println();
-     message = tmp+" ";
-   }
-
-   morseCode = "";
-   Serial.println("del: _"+message+"_");
-   
-   time = millis();
-   paused = false;
-   return;
-}
-*/
 
 void decodeMorse() {
   if (morseCode.length()==0) return;
@@ -256,54 +212,63 @@ void decodeMorse() {
 
 
 
-void sendTweet() {
+byte httpPOST(char* domainBuffer,int port,char* page,char* msg) {
+  int inChar;
+  char outBuf[64];
+  char jsonMessage[164] = "{\"value1\":\"";
+  strcat(jsonMessage, msg);
+  strcat(jsonMessage,"\"}");
+  boolean result = false;
+
+  Serial.print(F("Preparing to post message to "));
+  Serial.print(domainBuffer);
+  Serial.println(page);
+  Serial.print(F("Message: "));
+  Serial.println(jsonMessage);
   
-  // Switch LED to blue
-  set_led_color(BLUE);
-  
-  if (message.length()==0) return;
-  paused = true;
-  
-  Serial.print("sending tweet ... ");
-  message += TWITTER_HASHTAG;
-  message.toCharArray(tweet,140);
-  
-  if (twitter.post(tweet)) {
-    // Specify &Serial to output received response to serial port
-    int status = twitter.wait(&Serial);
-    if (status == 200) {
-      Serial.println("done");
-      
-      // play earcon after successful submission
-      tone(buzzPin, 440,100);
-      delay(100);
-      tone(buzzPin, 660,100);
-      delay(100);
-      tone(buzzPin, 880,300);
-      delay(100); 
-    } else {
-      Serial.print("failed : code ");
-      Serial.println(status);
-      // play error buzz and show red LED.  Then switch to green
-      set_led_color(RED);
-      tone(buzzPin, 100,1000); 
-    }
+  if(client.connect(domainBuffer, port)) {
     
-  } else { 
-    set_led_color(RED);
-    Serial.println("connection failed.");
-    tone(buzzPin,392);
-    delay(250);
-    tone(buzzPin,262, 500);
-    delay(500);
+    Serial.println(F("Making POST request"));
+
+    // send the header
+    client.print("POST ");
+    client.print(page);
+    client.print(" HTTP/1.1\r\n");
+
+    client.print("Host: ");
+    client.print(domainBuffer);
+    client.print("\r\n");
+    
+    client.print("Connection: close\r\n");
+    client.print("Content-Type: application/json\r\n");
+    client.print("Content-Length: ");
+    client.print(strlen(jsonMessage));
+    client.print("\r\n\r\n");
+    
+    // send the body (variables)
+    client.println(jsonMessage);
+    
+  } else {
+    Serial.println(F("POST failed"));
   }
   
-  set_led_color(GREEN);
-  
-  message = "";
-  time = millis();
-  paused = false;
+  if(client.connected()) {
+    Serial.println("Waiting for response");
+    if (client.find("HTTP/1.1") && client.find("200 OK") ) {
+      result = true;
+    } else {
+      Serial.println("Dropping connection - no 200 OK");
+    }
+  } else {
+    Serial.println("Disconnected");
+  }
+ 
+  client.stop();
+  client.flush();
+  return result;
 }
+
+
 
 
 
@@ -432,4 +397,46 @@ void loop() {
     } 
   }  // End of key up/down if statement
 }
+
+
+
+void sendTweet() {
+  
+  // Switch LED to blue
+  set_led_color(BLUE);
+  
+  if (message.length()==0) return;
+  paused = true;
+  
+  Serial.print("sending tweet ... ");
+  message += TWITTER_HASHTAG;
+  message.toCharArray(tweet,140);
+  
+  if (httpPOST(MAKER_URL, MAKER_PORT, MAKER_PAGE, tweet)) {
+
+      Serial.println("done");
+      
+      // play earcon after successful submission
+      tone(buzzPin, 440,100);
+      delay(100);
+      tone(buzzPin, 660,100);
+      delay(100);
+      tone(buzzPin, 880,300);
+      delay(100); 
+      
+  } else {
+      
+      Serial.print("failed");
+      // play error buzz and show red LED.  Then switch to green
+      set_led_color(RED);
+      tone(buzzPin, 100,1000); 
+  }
+
+  set_led_color(GREEN);
+  
+  message = "";
+  time = millis();
+  paused = false;
+}
+
 
