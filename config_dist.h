@@ -4,6 +4,12 @@
 #define ARDUINO_ETHERNET_MAC { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }
 
 // Twitter token
-#define MAKER_KEY "<INSERT MAKER KEY BETWEEN QUOTES>"
+// Maker location for IFTTT trigger
+const char MAKER_URL[] = "maker.ifttt.com";
+char MAKER_PAGE[60] = "/trigger/<trigger name>/with/key/";
+const int MAKER_PORT = 80;
+const char MAKER_KEY[] = "<INSERT MAKER KEY HERE>";
 
-#define TWITTER_HASHTAG "#TWORSE"
+const char TWITTER_HASHTAG " #TWORSE";    // Leave a leading space
+
+
