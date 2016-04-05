@@ -125,6 +125,8 @@ void setup() {
 }
 
 
+
+
 // Setup Ethernet connection
 void connectEthernet() {
   
@@ -155,6 +157,8 @@ void connectEthernet() {
 }
 
 
+
+
 // Reset Morse Code message.  
 // This is used when there is a timeout or after a message is sent out
 void resetAll() {
@@ -180,6 +184,8 @@ void resetAll() {
     paused = false;
     set_led_color(BLACK);
 }
+
+
 
 
 // Given a Morse Code letter in the morseCode variable, look up the corresponding 
@@ -239,9 +245,6 @@ byte httpPOST(char const* domainBuffer,int port,char const* page,char* msg) {
   strcat(jsonMessage,"\"}");
   boolean result = false;
 
-  Serial.print(F("Preparing to post message to "));
-  Serial.print(domainBuffer);
-  Serial.println(page);
   Serial.print(F("Message: "));
   Serial.println(jsonMessage);
   
@@ -270,12 +273,13 @@ byte httpPOST(char const* domainBuffer,int port,char const* page,char* msg) {
   if(client.connected()) {
     Serial.println(F("Waiting for response"));
     if (client.find("HTTP/1.1") && client.find("200 OK") ) {
+      Serial.println(F("Message received"));
       result = true;
     } else {
-      Serial.println(F("Dropping connection - no 200 OK"));
+      Serial.println(F("Message not received"));
     }
   } else {
-    Serial.println(F("Disconnected"));
+    Serial.println(F("Message not received"));
   }
  
   client.stop();
@@ -327,19 +331,18 @@ void set_led_color(int color) {
 }
 
 
-
+// Main program loop
 void loop() {  
   
-  if (paused) return;
+  if (paused) return; // Skip if in the middle of something else
  
   unsigned long duration = millis() - time;  // Figure out how long the key has been pressed/released
   
   if (digitalRead(morsePin) == HIGH) {     
+    
     // the morse key is currently UP
-  
     if (keyDown) {       
-         // the key was DOWN before (i.e. the key was just released)        
-        
+         // the key was DOWN before (i.e. the key was just released)            
         // If the key was pressed for a very short time, just ignore
         if (duration<20) return;
 
@@ -374,7 +377,8 @@ void loop() {
         // end of a character (starting a new character)
         decodeMorse();   // decode last letter  
       } else if (duration>1500 && message!="" && !addedSpace) {     // start a new word after 1.5 seconds
-          tone(buzzPin, 200,50);                          // short feedback beep
+          tone(buzzPin, 200,50);                                    // short feedback beep
+          message += " ";
           addedSpace = true;
       }
     } // End of key UP
@@ -415,23 +419,25 @@ void loop() {
 
 
 
+
+// Send out the Twitter message
 void sendTweet() {
-  
-  // Switch LED to blue
-  set_led_color(BLUE);
-  
+
+  // Don't bother if there isn't a mesage
   if (message.length()==0) return;
-  paused = true;
   
-  Serial.print("sending tweet ... ");
+  // Switch LED to blue and pause other operations
+  set_led_color(BLUE);
+  paused = true;
+
+  // Add the hashtag and convert the message String to a character array with max length 140 characters
+  Serial.print(F("sending tweet ... "));
   message += TWITTER_HASHTAG;
   message.toCharArray(tweet,140);
-  
-  if (httpPOST(MAKER_URL, MAKER_PORT, MAKER_PAGE, tweet)) {
 
-      Serial.println("done");
-      
-      // play earcon after successful submission
+  // POST the message to the MAKER URL
+  if (httpPOST(MAKER_URL, MAKER_PORT, MAKER_PAGE, tweet)) {
+      // Success! PLay happy tone
       tone(buzzPin, 440,100);
       delay(100);
       tone(buzzPin, 660,100);
@@ -447,8 +453,8 @@ void sendTweet() {
       tone(buzzPin, 100,1000); 
   }
 
+  // Reset variables and get ready for next message
   set_led_color(GREEN);
-  
   message = "";
   time = millis();
   paused = false;
