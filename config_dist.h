@@ -6,10 +6,8 @@
 // Twitter token
 // Maker location for IFTTT trigger
 const char MAKER_URL[] = "maker.ifttt.com";
-char MAKER_PAGE[60] = "/trigger/<trigger name>/with/key/";
+char MAKER_PAGE[60] = "/trigger/tweet/with/key/";
 const int MAKER_PORT = 80;
-const char MAKER_KEY[] = "<INSERT MAKER KEY HERE>";
+const char MAKER_KEY[] = "dVC4yKiH_RYlz0Qdd_OYkt";
 
-const char TWITTER_HASHTAG " #TWORSE";    // Leave a leading space
-
-
+const char TWITTER_HASHTAG[] = " #SWARTHMORSE";
