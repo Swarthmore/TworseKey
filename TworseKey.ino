@@ -19,7 +19,15 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "config.h"
 #include <SPI.h>
-#include <Ethernet2.h>
+
+#if WIFI
+  #include <WiFi.h>
+  WiFiClient client;
+  int status = WL_IDLE_STATUS;     // the Wifi radio's status
+#else
+  #include <Ethernet2.h>
+  EthernetClient client;
+#endif
 
 byte mac[] = ARDUINO_ETHERNET_MAC;
 
@@ -43,8 +51,8 @@ byte mac[] = ARDUINO_ETHERNET_MAC;
 #define DAH 300 // mS
 
 
+#define networkClientTimeout 3000
 
-EthernetClient client;
 
 // This IP address is used if DHCP fails
 byte ip[] = { 192, 168, 2, 2 };
@@ -60,7 +68,7 @@ unsigned long time = 0;
 String morseCode = "";
 String message = "";
 int maxMessageLength = 140;
-char tweet[140];
+
 
 char LATIN_CHARACTERS[] = {
         // Numbers
@@ -93,7 +101,6 @@ String MORSE_CHARACTERS[] = {
     
 
 
-
     
 // Program setup    
 void setup() {
@@ -115,7 +122,9 @@ void setup() {
   // initialize serial and ethernet connections
   Serial.begin(9600);
   delay(1000);
-  connectEthernet();
+  setupNetwork();
+
+  client.setTimeout(networkClientTimeout);
 
   // Calculate the maximum message length (based on extra hashtags)
   maxMessageLength = 140 - strlen(TWITTER_HASHTAG);
@@ -126,38 +135,99 @@ void setup() {
 
 
 
+#if WIFI
 
-// Setup Ethernet connection
-void connectEthernet() {
+  // Setup wifi connection
+  void setupNetwork() {
+   // check for the presence of the shield:
+    if (WiFi.status() == WL_NO_SHIELD) {
+      Serial.println("WiFi shield not present");
+      // don't continue:
+      while (true);
+    }
   
-  paused = true;
-  Serial.println(F("Connecting to Ethernet...")); 
+    String fv = WiFi.firmwareVersion();
+    if (fv != "1.1.0") {
+      Serial.println(F("Please upgrade the firmware"));
+    }
   
-  if (!Ethernet.begin(mac)) {
-    // if DHCP fails, start with the default IP address:
-    Ethernet.begin(mac, ip);
-    Serial.print(F("using default IP address: "));
-  } else {
-    Serial.print(F("got IP address from DHCP: "));
-  } 
+    // attempt to connect to Wifi network:
+    while (status != WL_CONNECTED) {
+      Serial.print(F("Attempting to connect to WPA SSID: "));
+      Serial.println(ssid);
+      // Connect to WPA/WPA2 network:
+      status = WiFi.begin(ssid, pass);
   
-  // Play tone to indicate a successful connection
-  tone(buzzPin, 440,100);
-  delay(100);
-  tone(buzzPin, 660,100);
-  delay(100);
-  tone(buzzPin, 880,300);
-  delay(300);
+      // wait 5 seconds for connection:
+      delay(5000);
+    }
+
+    connectionSuccessful();
   
-  // change LED color to GREEN
-  set_led_color(GREEN);
+    // you're connected now, so print out the data:
+    Serial.print(F("You're connected to the wifi network"));
+    // print your WiFi shield's IP address:
+    IPAddress ip = WiFi.localIP();
+    Serial.print("IP Address: ");
+    Serial.println(ip);
+    Serial.println(ip);
   
-  Serial.println(Ethernet.localIP());
-  paused = false;
+    // print your MAC address:
+    byte mac[6];
+    WiFi.macAddress(mac);
+    Serial.print("MAC address: ");
+    Serial.print(mac[5], HEX);
+    Serial.print(":");
+    Serial.print(mac[4], HEX);
+    Serial.print(":");
+    Serial.print(mac[3], HEX);
+    Serial.print(":");
+    Serial.print(mac[2], HEX);
+    Serial.print(":");
+    Serial.print(mac[1], HEX);
+    Serial.print(":");
+    Serial.println(mac[0], HEX);
+  }
+
+#else 
+
+  // Setup Ethernet connection
+  void setupNetwork() {
+    
+    paused = true;
+    Serial.println(F("Connecting to Ethernet...")); 
+    
+    if (!Ethernet.begin(mac)) {
+      // if DHCP fails, start with the default IP address:
+      Ethernet.begin(mac, ip);
+      Serial.print(F("using default IP address: "));
+    } else {
+      Serial.print(F("got IP address from DHCP: "));
+    } 
+    
+    connectionSuccessful();
+   
+    Serial.println(Ethernet.localIP());
+    paused = false;
+  }
+
+#endif
+
+
+// Connection successful sound and make LED green
+void connectionSuccessful() {
+    // Play tone to indicate a successful connection
+    tone(buzzPin, 440,100);
+    delay(100);
+    tone(buzzPin, 660,100);
+    delay(100);
+    tone(buzzPin, 880,300);
+    delay(300);
+
+    // change LED color to GREEN
+    set_led_color(GREEN);
+    
 }
-
-
-
 
 // Reset Morse Code message.  
 // This is used when there is a timeout or after a message is sent out
@@ -238,18 +308,23 @@ void decodeMorse() {
 
 // Send message to Maker webhook.  
 // This will trigger IFTTT to send a Tweet.
-byte httpPOST(char const* domainBuffer,int port,char const* page,char* msg) {
-  
-  char jsonMessage[164] = "{\"value1\":\"";
-  strcat(jsonMessage, msg);
-  strcat(jsonMessage,"\"}");
+byte httpPOST(char const* domainBuffer,int port,char const* page, String msg) {
+
+  String jsonString = "{\"value1\":\"" + msg + "\"}";
+  char jsonMessage[164];
+  jsonString.toCharArray(jsonMessage,164);
+ 
   boolean result = false;
 
   Serial.print(F("Message: "));
   Serial.println(jsonMessage);
+
+  client.stop();
   
   if(client.connect(domainBuffer, port)) {
-    
+
+    Serial.println("Connected");
+
     // send the header
     client.print(F("POST "));
     client.print(page);
@@ -265,28 +340,24 @@ byte httpPOST(char const* domainBuffer,int port,char const* page,char* msg) {
     
     // send the body (variables)
     client.println(jsonMessage);
+
+    Serial.println("Done sending message");
     
-  } else {
-    Serial.println(F("POST failed"));
-  }
-  
-  if(client.connected()) {
-    Serial.println(F("Waiting for response"));
-    if (client.find("HTTP/1.1") && client.find("200 OK") ) {
+    if(client.available()>0 && client.find("200 OK")) {
       Serial.println(F("Message received"));
       result = true;
     } else {
       Serial.println(F("Message not received"));
     }
+
   } else {
-    Serial.println(F("Message not received"));
+    Serial.println(F("POST failed"));
   }
- 
+
   client.stop();
   client.flush();
   return result;
 }
-
 
 
 
@@ -423,6 +494,8 @@ void loop() {
 // Send out the Twitter message
 void sendTweet() {
 
+  char tweet[140];
+
   // Don't bother if there isn't a mesage
   if (message.length()==0) return;
   
@@ -436,7 +509,7 @@ void sendTweet() {
   message.toCharArray(tweet,140);
 
   // POST the message to the MAKER URL
-  if (httpPOST(MAKER_URL, MAKER_PORT, MAKER_PAGE, tweet)) {
+  if (httpPOST(MAKER_URL, MAKER_PORT, MAKER_PAGE, message)) {
       // Success! PLay happy tone
       tone(buzzPin, 440,100);
       delay(100);
@@ -447,7 +520,7 @@ void sendTweet() {
       
   } else {
       
-      Serial.print("failed");
+      Serial.println(F("Sending Tweet failed"));
       // play error buzz and show red LED.  Then switch to green
       set_led_color(RED);
       tone(buzzPin, 100,1000); 
