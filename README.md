@@ -16,10 +16,53 @@ Two 160&Omega; resistors| for green and blue portions of the RGB LED
 50&Omega; resistor|For the buzzer
 Breadboard | To plug in the electrical components. [A small one works fine](https://www.sparkfun.com/products/12046)
 Hookup wire | To connect the parts 
+Box or Wooden board | To mount the components
 
 
-# Instructions 
-To build the hardware, see the parts list on the original site (https://code.google.com/archive/p/tworsekey/) as well as the Circuit Diagram.  
+# Hardware setup 
+Hook up the parts as in the diagram below
+![circuit diagram](https://raw.githubusercontent.com/Swarthmore/TworseKey/master/Circuit%20Diagram_bb.png "Circuit diagram")
+
+# Software setup
+* Open the Arduino program: https://www.arduino.cc/en/Main/Software
+* If you are using Ethernet, download the Ethenet2 Arduino library from https://github.com/adafruit/Ethernet2/archive/master.zip
+  * The regular Ethernet library only works with older Ethernet shields.  The Ethernet 2 library is required for newer shields.
+  * Unzip the master.zip file, Find the "src" folder, and copy it into the Documents → Arduino → libraries folder.
+* In the Arudino app, under  the "Tools → Board" menu, select "Arduino / Genuino Uno"
+* Connect your Arduino to your computer with the USB cable
+* Under the "Tools → Port" menu select something like "dev/cu.usbmodem"
+* Download TworseKey program from GitHub: (https://github.com/Swarthmore/TworseKey) by clicking on the "Download Zip" option.
+* Unzip the file, open the folder, and double click on the "TworseKey.ino" to open up the code.
+
+## Twitter connection
+The Arduino is not sophisticated enough to authenticate to Twitter and send a Tweet.  We are using IFTTT.com to send the tweets for us.  
+* Go to IFTTT.com, create an account, and then make a new recipe.  
+* The Recipe is: If Maker Event "tweet", then post a tweet to <your Twitter handle>
+  * You will need to add the Maker and Twitter channels and do whatever authentication is required.
+
+## Configuration
+* Open the config_dist.h file (should be a tab in the Arduino program)
+* Open a new tab (arrow on far right) and create a config.h file.  Copy and paste the content from config_hist.h to config.h
+* Modify config.h with the MAC address from your Ethernet or Wifi board.  Include "0x" in front of each set of two characters
+* Edit the code for Wifi or Ethernet
+* Enter your Maker Key set up from IFTTT.com
+* Modify hashtag(s) as you see fit
+* Save config.h
+* Click the check button on the top left of the window to verify everything is ok. 
+* If so, click the right arrow button to upload your code to the Arduino
+
+# Operation
+After the Arduino is first powered up, it will look for a network connection. The LED will be yellow.  The wifi can take a while to connect.  Once a network connection is established, the LED will turn green and tone will sound.
+
+Press the Morse key down for a short time for a dot and longer time for a dash.  The defaults are 150mS or shorter is a dot and 150mS to 600mS is a dash.  These can be modified in the main program. Pauses for more than a 1.5 seconds will automatically add a space.
+
+Press the key down for more than 3 seconds to send the message to twitter.  The LED will turn blue while the message is sent.  A tone will indicate success or failure.  
+
+Type 8 dots to reset your message.
+
+You can use the Arduino serial monitor to see what you are typing.  
+
+If you want to test out the system without sending lots of crazy tweets, you can update your IFTTT.com recipe to record your messages to a Google spreadsheet instead of sending to Twitter.  
 
 
 # Original README
